@@ -1,4 +1,50 @@
-               url: "https://data.geo-fs.com/srtm/",
+// ==UserScript==
+// @name         GeoFS Mega Addon + LiverySelector
+// @namespace    http://tampermonkey.net/
+// @version      3.6.1
+// @description  HD Terrain + All-in-One Addon + LiverySelector + Custom Vehicles
+// @author       Combined
+// @match        https://www.geo-fs.com/geofs.php*
+// @match        https://*.geo-fs.com/geofs.php*
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=geo-fs.com
+// @grant        none
+// @run-at       document-end
+// ==/UserScript==
+
+(function () {
+    'use strict';
+
+    console.log('%c[GeoFS Mega Addon] Starting...', 'color:#3f5f8a;font-weight:bold');
+
+    // ============================================================
+    // 1. HD TERRAIN
+    // ============================================================
+    const provider = "google";
+    const multiplayerServer = "default";
+    window.geofsNewHDState = true;
+
+    window.geofs.geoIpUpdate = function () {
+        delete window.geofs.api.analytics;
+        document.body.classList.add("geofs-hd");
+
+        if (multiplayerServer !== "default") {
+            window.geofs.multiplayerHost = multiplayerServer;
+        }
+
+        if (provider === "google") {
+            window.geofs.api.imageryProvider = new window.Cesium.UrlTemplateImageryProvider({
+                maximumLevel: 21,
+                hasAlphaChannel: false,
+                subdomains: ["mt0", "mt1", "mt2", "mt3"],
+                url: "https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
+            });
+        }
+
+        window.geofs.api.setImageryProvider(window.geofs.api.imageryProvider, false);
+        window.geofs.api.viewer.terrainProvider = window.geofs.api.flatRunwayTerrainProviderInstance =
+            new window.geofs.api.FlatRunwayTerrainProvider({
+                baseProvider: new window.Cesium.CesiumTerrainProvider({
+                    url: "https://data.geo-fs.com/srtm/",
                     requestWaterMask: false,
                     requestVertexNormals: true
                 }),
@@ -7,8 +53,7 @@
             });
     };
 
-    // Apply HD when GeoFS starts
-    window.executeOnEventDone("geofsStarted", function() {
+    window.executeOnEventDone("geofsStarted", function () {
         if (window.geofs.api.hdOn === window.geofsNewHDState) return;
         window.jQuery("body").trigger("terrainProviderWillUpdate");
         window.geofs.geoIpUpdate();
@@ -17,24 +62,69 @@
         window.jQuery("body").trigger("terrainProviderUpdate");
     });
 
-    window.executeOnEventDone("afterDeferredload", function() {
+    window.executeOnEventDone("afterDeferredload", function () {
         window.geofs.mapXYZ = "https://data.geo-fs.com/osm/{z}/{x}/{y}.png";
     });
 
-    // ==================== LOAD OFFICIAL ALL-IN-ONE ADDON ====================
-    var addonScript = document.createElement('script');
-    addonScript.src = "https://raw.githack.com/geofs-pilot/GeoFS-All-in-one-Addon/refs/heads/main/main.js";
-    addonScript.onload = () => console.log("✅ All-in-One Addon loaded successfully");
-    document.body.appendChild(addonScript);
+    // ============================================================
+    // 2. LOAD ALL-IN-ONE ADDON
+    // ============================================================
+    const allInOne = document.createElement('script');
+    allInOne.src = "https://raw.githack.com/geofs-pilot/GeoFS-All-in-one-Addon/refs/heads/main/main.js";
+    allInOne.onload = () => console.log("%c✅ All-in-One Addon loaded", "color:green");
+    allInOne.onerror = () => console.warn("%c⚠ All-in-One failed", "color:orange");
+    document.head.appendChild(allInOne);
 
-    // ==================== CUSTOM VEHICLES ====================
-    // These can be added manually via GeoFS aircraft menu or community loader if supported
+    // ============================================================
+    // 3. LOAD LIVERY SELECTOR (official source – always up to date)
+    // ============================================================
+    const liveryScript = document.createElement('script');
+    liveryScript.src = "https://cdn.jsdelivr.net/gh/kolos26/GEOFS-LiverySelector@main/LiverySelector.js?" + Date.now();
+    liveryScript.onload = () => console.log("%c✅ LiverySelector loaded", "color:green");
+    liveryScript.onerror = () => {
+        // fallback to raw GitHub
+        const fallback = document.createElement('script');
+        fallback.src = "https://raw.githubusercontent.com/kolos26/GEOFS-LiverySelector/main/LiverySelector.js?" + Date.now();
+        document.head.appendChild(fallback);
+        console.log("%c✅ LiverySelector loaded (fallback)", "color:green");
+    };
+    document.head.appendChild(liveryScript);
 
-    console.log(`
-Custom Vehicles Available:
-• McLaren P1 (id: 301)
-• Lamborghini Aventador SV (id: 319)
-• U2 Dragon Lady
+    // ============================================================
+    // 4. CUSTOM VEHICLES (definitions only)
+    // ============================================================
+    window.megaAddonVehicles = {
+        mclarenP1: {
+            id: 301,
+            name: "McLaren P1",
+            fullPath: "https://quietclient5726.github.io/GeoFS-McLarenP1/model/",
+            isPremium: 0,
+            isCommunity: 0,
+            definition: "ewogICJtb2RlbCI6ICJtb2RlbC9tY2xhcmVucDEuZ2xiIiwKICAibWFzcyI6IDE1MDAKICAiZW5naW5lIjogewogICAgInR5cGUiOiAiY2FyIiwKICAgICJwb3dlciI6IDkwMywKICAgICJtYXhScG0iOiA5MDAwCiAgfSwKICAiYWVyb2R5bmFtaWNzIjogewogICAgImRyYWciOiAwLjM0LAogICAgImxpZnQiOiAwLjAKICB9LAogICJncm91bmQiOiB7CiAgICAiZ2VhciI6IFsKICAgICAgewogICAgICAgICJwb3MiOiBbMS43LCAtMC4zLCAxLjVdLAogICAgICAgICJyYWRpdXMiOiAwLjM1LAogICAgICAgICJzdGVlcmluZyI6IHRydWUKICAgICAgfSwKICAgICAgewogICAgICAgICJwb3MiOiBbMC4xNywgLTAuMywgMS41XSwKICAgICAgICAicmFkaXVzIjogMC4zNSwKICAgICAgICAic3RlZXJpbmciOiB0cnVlCiAgICAgIH0sCiAgICAgIHsKICAgICAgICAicG9zIjogWzEuNywgLTAuMywgLTEuNl0sCiAgICAgICAgInJhZGl1cyI6IDAuMzUKICAgICAgfSwKICAgICAgewogICAgICAgICJwb3MiOiBbLTEuNywgLTAuMywgLTEuNl0sCiAgICAgICAgInJhZGl1cyI6IDAuMzUKICAgICAgfQogICAgXQogIH0KfQ=="
+        },
+        aventador: {
+            id: 319,
+            name: "Lamborghini Aventador SV",
+            fullPath: "https://quietclient5726.github.io/geofs-aventador-addon/",
+            isPremium: 0,
+            isCommunity: 0,
+            definition: "eyJtb2RlbCI6Im1vZGVsL2F2ZW50YWRvci5nbHRmIiwibWFzcyI6MTUwMCwiZW5naW5lIjp7InR5cGUiOiJjYXIiLCJwb3dlciI6NzcwfSwiYWVyb2R5bmFtaWNzIjp7ImRyYWciOjAuMzIsImxpZnQiOjB9fQ=="
+        }
+    };
 
-Copy the definitions below into GeoFS if your loader supports custom aircraft JSON.
-`);
+    console.log("%c📋 Custom vehicles ready (window.megaAddonVehicles)", "color:#888");
+
+    // Status key
+    document.addEventListener('keydown', e => {
+        if (e.key.toLowerCase() === 'h' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+            alert(
+                "GeoFS Mega Addon Active!\n\n" +
+                "• HD Terrain (Google)\n" +
+                "• All-in-One Addon\n" +
+                "• LiverySelector\n" +
+                "• Custom vehicles (see console)"
+            );
+        }
+    });
+
+})();
